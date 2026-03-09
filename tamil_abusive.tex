@@ -1,0 +1,392 @@
+\documentclass[11pt]{article}
+\usepackage[final]{acl}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+% \usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning}
+
+% Compress spacing
+\usepackage{setspace}
+\setlength{\parskip}{0pt}
+\setlength{\floatsep}{4pt}
+\setlength{\textfloatsep}{6pt}
+\setlength{\intextsep}{4pt}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\title{PrimeLine@DravidianLangTech 2026: Abusive Tamil Comment Detection\\
+Using MuRIL}
+
+\author{
+  \textbf{Rithikaa V} \quad \textbf{Sanjay Krishnan K} \quad \textbf{Nithya Varshini C N R} \quad \textbf{S. Sumathi}\\
+  Department of Information Technology, St.\ Joseph's College of Engineering\\
+  \href{https://github.com/Nithya-svg/primeline_tamil_abusive}{\texttt{https://github.com/Nithya-svg/primeline\_tamil\_abusive}}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Detecting abusive language in Tamil social media is a genuinely difficult problem. The language is morphologically rich, speakers routinely mix Tamil with English, and informal
+romanised Tamil is common enough to confuse models trained primarily on formal text.
+This work presents a system for binary classification of Tamil comments into Abusive and
+Non-Abusive categories, submitted to the DravidianLangTech@ACL 2026 shared task \cite{sivagnanam2026}.
+MuRIL \cite{khanuja2021}, a BERT-based encoder pre-trained
+on 17 Indian languages and their transliterated equivalents, is fine-tuned, and it is shown
+that this Indian-language-specific pre-training
+provides a meaningful advantage over generic
+multilingual baselines. The system achieves a
+macro-averaged F1 of 0.83 on the validation
+set, compared to 0.79 for XLM-RoBERTa and
+0.77 for mBERT under identical training conditions, establishing a strong transformer-based
+baseline for abusive language detection in code-mixed Tamil.
+\end{abstract}
+
+\section{Introduction}
+
+Tamil is one of the oldest classical languages still in
+everyday use, with more than 80 million speakers
+worldwide. Social media has given Tamil speakers
+an enormous platform for public expression, but
+it has also made it easier for abusive and harmful
+content to spread. Detecting such content automatically is a growing research priority, yet most
+existing systems are designed for high-resource
+languages like English and do not transfer well to
+Tamil.
+
+The challenge goes beyond data scarcity. Tamil
+is an agglutinative language, where a single word
+can encode morphological information that would
+require several words in English. On social media, this complexity is compounded by heavy code-mixing: users blend native Tamil script, romanised Tamil, and English freely within a single comment, with no consistent orthographic convention.
+Lexicon-based systems and classical machine learning approaches struggle in this setting because they
+rely on vocabulary stability that code-mixed text
+simply does not have.
+
+The DravidianLangTech@ACL 2026 shared task
+on abusive Tamil comment detection \cite{sivagnanam2026} provides a structured benchmark for this problem, framing it as binary classification: given a Tamil social media comment, decide whether it is Abusive or Non-Abusive. The approach centers on
+fine-tuning MuRIL \cite{khanuja2021}, a transformer encoder pre-trained specifically on 17 Indian languages including Tamil, using both native script and transliterated corpora. MuRIL's dual-script coverage makes
+it uniquely well-suited to the romanised Tamil that
+is pervasive in online communication.
+
+\section{Related Work}
+
+Early systems for abusive language detection relied
+on keyword lists and hand-crafted features combined with traditional classifiers such as Support
+Vector Machines and Naive Bayes \cite{nobata2016}. While effective for formal single-language text, these methods
+break down when vocabulary is informal or code-mixed.
+
+The introduction of BERT \cite{devlin2019} changed the landscape considerably. Pre-trained transformer models produced contextual representations that generalised far better across domains, and their multilingual variants extended these benefits to non-English languages. \citet{ranasinghe2021} demonstrated that fine-tuned multilingual transformers consistently outperform traditional methods on offensive language tasks across multiple
+languages. \citet{vaswani2017} introduced the Transformer architecture that underpins all of these models, establishing multi-head self-attention as the
+mechanism for capturing long-range token dependencies. \citet{liu2019} later showed that more robust pre-training strategies yield better downstream
+performance, a finding extended to the multilingual setting by \citet{conneau2020} through XLM-RoBERTa.
+
+For Dravidian languages, the DravidianLangTech and LT-EDI shared tasks have been the
+primary source of benchmarks. \citet{chakravarthi2021} reported results on offensive language identification in Tamil, Malayalam, and Kannada, where
+fine-tuned mBERT and XLM-RoBERTa were the
+dominant approaches. \citet{saisharma2021} explored offensive language identification across Dravidian languages. Tamil-specific work has explored
+ensemble strategies and model combinations: \citet{anbukkarasi2023} applied deep
+learning for hate speech detection in code-mixed
+Tamil, \citet{subramanian2022} used adapters and
+cross-domain transfer for offensive language in
+Tamil YouTube comments, and \citet{krishna2024} addressed class imbalance in Tamil code-mixed
+abusive comment detection. \citet{nishanth2025} applied
+RoBERTa and XGBoost for abusive Tamil and
+Malayalam text detection at DravidianLangTech
+2025. However, MuRIL has not been systematically evaluated on abusive language detection in
+Tamil --- which is the gap this work addresses.
+
+MuRIL \cite{khanuja2021} was developed by Google Research
+and pre-trained on 17 Indian languages using
+Wikipedia and Common Crawl data in both native
+and transliterated script. This dual-script design is
+a key advantage over XLM-RoBERTa and mBERT,
+neither of which includes transliterated training
+data. For Tamil social media, where romanised text
+is widespread, MuRIL's pre-training distribution is
+a much closer match to the target domain.
+
+\section{Dataset and Preprocessing}
+
+\subsection{Dataset}
+
+The dataset was provided by the shared task organisers and consists of Tamil social media comments labelled as Abusive or Non-Abusive. The
+text reflects real-world Tamil online writing, freely
+mixing native Tamil script, romanised Tamil, and
+English within individual comments. This code-mixed, multi-script nature makes automated classification considerably harder than a standard monolingual setting.
+
+The full annotated training set contains 3,652
+examples. A stratified 90/10 split is applied to
+preserve label distribution, yielding 3,286 training
+examples and 366 validation examples. The test set
+comprises 912 unlabelled comments for blind evaluation, which is standard practice in shared task
+settings. The training data exhibits moderate class
+imbalance: approximately 64\% Non-Abusive and
+36\% Abusive. Table~\ref{tab:dist} shows the full class distribution. Comment lengths vary from brief single-word
+utterances to multi-sentence posts, with a mean token length of approximately 18 tokens after Unicode normalisation. The minority Abusive class
+is the harder of the two to detect reliably, especially when abuse is expressed through sarcasm
+or indirect phrasing rather than explicit offensive
+vocabulary.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrr}
+\toprule
+\textbf{Label} & \textbf{Count} & \textbf{\%} \\
+\midrule
+Non-Abusive & 2338 & 64\% \\
+Abusive     & 1314 & 36\% \\
+\midrule
+Total       & 3652 & 100\% \\
+\bottomrule
+\end{tabular}
+\caption{Class distribution for the Tamil abusive comment detection training data.}
+\label{tab:dist}
+\end{table}
+
+\subsection{Preprocessing}
+
+Text samples are tokenised using the MuRIL WordPiece tokeniser, which handles both native Tamil
+script and romanised equivalents natively. A maximum sequence length of 128 tokens is used, sufficient for the short social media comments in this
+dataset. Sequences exceeding this limit are truncated, and shorter sequences are padded within
+each batch. Unicode normalisation is applied
+to handle encoding inconsistencies common in
+crawled social media text.
+
+Transliteration, language identification, and stopword removal are deliberately skipped. MuRIL's
+dual-script pre-training already accounts for the
+mix of native and romanised Tamil, and additional
+normalisation risks erasing code-switching cues
+that carry genuine semantic meaning.
+
+\section{Methodology}
+
+\subsection{System Pipeline}
+
+The system follows a straightforward fine-tuning
+pipeline, illustrated in Figure~\ref{fig:pipeline}. Each comment
+is passed to the MuRIL tokeniser, encoded as token IDs with a prepended \texttt{[CLS]} token, and fed
+into the MuRIL transformer encoder. The hidden
+state at the \texttt{[CLS]} position is extracted and passed
+through a linear classification head that maps it to
+two logits. These are normalised via softmax, and
+the class with the highest probability is taken as the
+prediction.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  node distance=0.35cm,
+  box/.style={rectangle, rounded corners=3pt, draw, text centered, minimum height=0.7cm, minimum width=5.5cm, font=\small},
+  orangebox/.style={box, fill=orange!30, draw=orange!60!black},
+  tealbox/.style={box, fill=teal!30, draw=teal!60!black},
+  bluebox/.style={box, fill=blue!20, draw=blue!60!black},
+  greenbox/.style={box, fill=green!25, draw=green!60!black},
+  arr/.style={-Stealth, thick}
+]
+\node[orangebox] (input) {Raw Text Input (Code-Mixed Tamil)};
+\node[tealbox, below=of input] (tok) {MuRIL Tokeniser (WordPiece, max 128)};
+\node[bluebox, below=of tok] (enc) {MuRIL Encoder (12 layers, 768 dims)};
+\node[bluebox, below=of enc] (cls) {\texttt{[CLS]} Token Representation};
+\node[greenbox, below=of cls] (head) {Linear Head: 2 classes};
+\node[orangebox, below=of head] (out) {Predicted Label (Abusive / Non-Abusive)};
+
+\draw[arr] (input) -- (tok);
+\draw[arr] (tok) -- (enc);
+\draw[arr] (enc) -- (cls);
+\draw[arr] (cls) -- (head);
+\draw[arr] (head) -- (out);
+\end{tikzpicture}
+\caption{End-to-end system pipeline for abusive comment classification in Tamil.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Model: MuRIL}
+
+The core model is MuRIL (Multilingual Representations for Indian Languages; \citealt{khanuja2021}), a
+BERT-based encoder released by Google Research,
+pre-trained on 17 Indian languages in both native
+and transliterated script. Its 12-layer transformer
+architecture produces 768-dimensional contextualised token representations. A single linear classification head is placed over the \texttt{[CLS]} token representation, mapping the 768-dimensional vector
+to two output logits. The entire model is fine-tuned
+end-to-end.
+
+\subsection{Model Formulation}
+
+At each transformer layer, MuRIL computes scaled
+dot-product attention over queries $\mathbf{Q}$, keys $\mathbf{K}$, and
+values $\mathbf{V}$:
+\begin{equation}
+\text{Attention}(\mathbf{Q}, \mathbf{K}, \mathbf{V}) = \text{softmax}\!\left(\frac{\mathbf{Q}\mathbf{K}^\top}{\sqrt{d_k}}\right)\mathbf{V}
+\end{equation}
+where $d_k$ is the key vector dimension. This allows
+the model to capture dependencies between tokens
+across Tamil script, romanised Tamil, and English
+simultaneously within a single comment.
+
+The \texttt{[CLS]} representation from the final encoder layer is passed through the linear head,
+and the resulting logits are normalised via softmax to produce class probabilities for $c \in
+\{\text{Abusive},\, \text{Non-Abusive}\}$:
+\begin{equation}
+P(y = c \mid x) = \frac{\exp(z_c)}{\sum_{j} \exp(z_j)}
+\end{equation}
+
+Training minimises binary cross-entropy loss
+over all training samples:
+\begin{equation}
+\mathcal{L} = -\frac{1}{N}\sum_{i=1}^{N}\!\Big[y_i \log P(y{=}1 \mid x_i) + (1{-}y_i)\log P(y{=}0 \mid x_i)\Big]
+\end{equation}
+where $N$ is the number of training examples and
+$y_i \in \{0,1\}$ is the binary ground truth label.
+
+\subsection{Training Setup}
+
+All models are fine-tuned using the Hugging Face
+Transformers Trainer API \cite{wolf2020} with a learning rate
+of $2\times10^{-5}$, batch size of 16, weight decay of 0.01,
+and 4 training epochs. The AdamW optimiser is
+used throughout. Macro-averaged F1 on the validation set serves as the primary evaluation metric,
+since it weights all classes equally and is sensitive
+to performance on the minority Abusive class. All
+experiments run on a CUDA-enabled GPU with
+total training time of approximately 25 minutes.
+
+MuRIL was evaluated at 2, 3, 4, and 5 training epochs on the validation set. Performance improved from 0.79 at 2 epochs to 0.83 at 4 epochs,
+and stabilised thereafter with no further gain at 5
+epochs. The 4-epoch configuration was therefore
+used for all reported experiments.
+
+\section{Results and Discussion}
+
+\subsection{Official Results}
+
+Table~\ref{tab:results} reports macro-averaged precision, recall,
+and F1 on the held-out validation set for MuRIL
+and two multilingual baselines --- mBERT \cite{devlin2019} and
+XLM-R \cite{conneau2020} --- both fine-tuned under identical settings.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{P} & \textbf{R} & \textbf{F1} \\
+\midrule
+mBERT & 0.78 & 0.76 & 0.77 \\
+XLM-R & 0.80 & 0.79 & 0.79 \\
+\textbf{MuRIL (proposed)} & \textbf{0.84} & \textbf{0.83} & \textbf{0.83} \\
+\bottomrule
+\end{tabular}
+\caption{Macro-averaged results on the validation set (P\,=\,Precision, R\,=\,Recall, F1\,=\,Macro F1).}
+\label{tab:results}
+\end{table}
+
+MuRIL achieves the best performance across all
+metrics, with a macro-F1 of 0.83 compared to 0.79
+for XLM-R and 0.77 for mBERT. The improvement
+is most pronounced for the Abusive class, where
+MuRIL's Indian-language-specific pre-training enables better representation of Tamil morphology
+and colloquial script variants. The gap between
+MuRIL and XLM-R is especially telling: XLM-R
+is a strong multilingual model, but it does not include transliterated training data. For Tamil social
+media, that gap in pre-training coverage translates
+directly into lower recall on abusive content.
+
+Table~\ref{tab:perclass} shows the per-class breakdown for
+MuRIL, giving a clearer view of where the model
+performs well and where it still falls short.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Class} & \textbf{Precision} & \textbf{Recall} \\
+\midrule
+Non-Abusive & 0.87 & 0.91 \\
+Abusive     & 0.81 & 0.75 \\
+\bottomrule
+\end{tabular}
+\caption{Per-class precision and recall for the proposed MuRIL system.}
+\label{tab:perclass}
+\end{table}
+
+The Non-Abusive class is handled with higher
+precision and recall, as expected given the class
+imbalance. A recall of 0.75 on Abusive comments
+means roughly one in four abusive examples is
+missed --- improving this is the clearest direction
+for future work.
+
+\subsection{Error Analysis}
+
+Qualitative examination of the misclassified examples reveals two dominant patterns. The first is implicit abuse: comments that convey abusive intent
+through sarcasm, euphemism, or cultural reference
+without any overtly offensive vocabulary. These
+are consistently misclassified as Non-Abusive by
+all three models, since the meaning only becomes
+clear with contextual knowledge the models do not
+possess.
+
+The second pattern involves dense code-mixing:
+utterances that switch between Tamil script, romanised Tamil, and English multiple times within a
+single short comment. When all three layers are
+simultaneously active, even MuRIL occasionally
+fails to build a coherent contextual representation.
+
+False negatives (Abusive predicted as Non-Abusive) outnumber false positives across all models, reflecting the majority-class bias introduced
+by the training imbalance. Future work should explore loss reweighting or focal loss to counteract
+this tendency, as well as back-translation from related Dravidian languages to augment the Abusive
+training set.
+
+\section{Conclusion}
+
+This work presents a system for Tamil abusive
+comment detection based on fine-tuning MuRIL
+for binary sequence classification. By leveraging
+Indian-language-specific pre-training on both native and transliterated scripts, the model achieves a
+macro-F1 of 0.83 on the validation set, outperforming XLM-R and mBERT by clear margins under
+identical conditions. The results confirm that pre-training data composition matters: a model exposed
+to transliterated Tamil is better equipped to handle
+the romanised code-mixing that defines Tamil social media. Future directions include adversarial
+training for implicit abuse, ensemble methods combining transformer representations with lexicon-based features, and extension to multi-class offensive language categories.
+
+\section*{Limitations}
+
+The system is trained and evaluated on the provided shared task dataset alone, and generalisation
+to other Tamil platforms or time periods cannot
+be guaranteed. The maximum sequence length of
+128 tokens may truncate longer comments, losing
+relevant context. Computational constraints limited experiments to MuRIL-base. Class imbalance
+was not addressed through resampling or weighted
+loss, which likely suppressed recall on the Abusive
+class.
+
+\section*{Acknowledgments}
+
+The organizers of the DravidianLangTech@ACL 2026 shared task \cite{sivagnanam2026} are
+thanked for providing the annotated dataset and
+evaluation infrastructure. Sincere gratitude is
+expressed to the project guide, S.~Sumathi, Department of Information Technology, St.~Joseph's
+College of Engineering, for constant guidance
+and encouragement throughout this work. The
+developers of MuRIL and the Hugging Face
+Transformers library are also thanked for making
+their tools openly available.
+
+\setlength{\bibsep}{1pt}
+\small
+\bibliography{references}
+
+\end{document}
